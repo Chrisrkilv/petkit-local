@@ -19,6 +19,7 @@ from aiohttp import web
 
 from petkit_local.events.ingest import _MODULE_TYPE_TO_CATEGORY, backfill_event_rows
 from petkit_local.http.bucket import create_bucket_app
+from petkit_local.http.tls_split import start_tls_split
 from petkit_local.http.handlers.upload_file_info import wait_for_pending as wait_for_media_tasks
 from petkit_local.media.retention import RetentionSweeper
 from petkit_local.media.stitch import EpisodeStitcher
@@ -244,14 +245,24 @@ async def start_background(services: Services, app_instance: web.Application) ->
     _spawn(app_instance, "episode-stitcher", stitcher.run())
 
     if not services.no_mqtt:
+        key_path = config.mqtt_key or f"{config.data_dir}/certs/broker.key"
+        tls_split = config.mqtt_tls and config.mqtt_tls_api
         broker = await start_broker(
             config.mqtt_port, registry,
             tls=config.mqtt_tls, tls_port=config.mqtt_tls_port,
             certfile=cert_path,
-            keyfile=config.mqtt_key or f"{config.data_dir}/certs/broker.key",
+            keyfile=key_path,
             strict_auth=config.mqtt_strict_auth, hub=hub,
+            tls_split=tls_split,
         )
         app_instance["mqtt_broker"] = broker
+        if tls_split:
+            # After the broker, which it hands MQTT to. The device-facing app
+            # it hands HTTPS to is `app_instance` itself.
+            split = await start_tls_split(broker, app_instance, config.mqtt_tls_port,
+                                          cert_path, key_path)
+            if split is not None:
+                app_instance["tls_split"] = split
         # The panel is a separate application, and its device view reports
         # what the broker will actually deliver (`broker.delivery_view`) —
         # the only thing that distinguishes a command with nowhere to land
@@ -307,6 +318,12 @@ async def cleanup_background(services: Services, app_instance: web.Application) 
     event_store = services.event_store
     upstream_mqtt = services.upstream_mqtt
     go2rtc = services.go2rtc
+
+    # First, so no device request arrives through the TLS port while
+    # everything below is being stopped. The plain port is already closed by
+    # the time this hook runs.
+    if "tls_split" in app_instance:
+        await app_instance["tls_split"].stop()
 
     await wait_for_media_tasks()
 

@@ -177,6 +177,26 @@ def ensure_self_signed(cert_path: str, key_path: str,
         return False
 
 
+def device_ssl_context(listener) -> ssl.SSLContext:
+    """amqtt's TLS context for `listener`, opened up to what a device offers.
+
+    The device's mbedtls offers only RSA key-exchange and PSK suites — no
+    ECDHE, no DHE. Python 3.12's ssl.create_default_context() excludes plain
+    RSA (no forward secrecy), so the TLS handshake fails with no shared
+    cipher. The broker's `_create_ssl_context` is replaced with this, and
+    `http/tls_split.py` builds its context here too, so the TLS port answers a
+    device the same way whichever of them owns it.
+
+    Args:
+        listener: Anything with amqtt's listener keys; only `certfile` and
+            `keyfile` are needed.
+    """
+    ctx = Broker._create_ssl_context(listener)
+    ctx.set_ciphers("DEFAULT:@SECLEVEL=0")
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    return ctx
+
+
 async def start_broker(
     port: int = 1883,
     registry: DeviceRegistry | None = None,
@@ -187,6 +207,7 @@ async def start_broker(
     keyfile: str = "",
     strict_auth: bool = False,
     hub: EventHub | None = None,
+    tls_split: bool = False,
 ) -> Broker:
     """Start the embedded broker and hand the auth plugin its dependencies.
 
@@ -202,6 +223,10 @@ async def start_broker(
             the TLS listener — a plain-HTTP device keeps working.
         strict_auth: Reject devices that fail signature validation. Off by
             default (see AliyunAuthPlugin).
+        tls_split: Leave the TLS port to `http/tls_split.py`, which also
+            answers HTTPS API calls on it. The TLS listener is then amqtt's
+            `external` type: nothing is bound here, and the split hands it the
+            connections that turn out to be MQTT.
 
     Returns:
         The started Broker. The caller owns shutting it down.
@@ -214,14 +239,22 @@ async def start_broker(
     if tls:
         cert = certfile or "/data/certs/broker.crt"
         key = keyfile or "/data/certs/broker.key"
-        if ensure_self_signed(cert, key):
+        if not ensure_self_signed(cert, key):
+            log.warning("TLS requested but no cert available - TLS listener not started")
+        elif tls_split:
+            # `bind` keeps its default on purpose: amqtt skips a listener with
+            # no bind before it looks at the type, so an external one without
+            # it would never be registered. Nothing is bound for it either way.
+            listeners["tls"] = ListenerConfig(type="external")
+            log.info("TLS port %d: MQTT and the HTTPS device API (mqtt_tls_api on)",
+                     tls_port)
+        else:
             listeners["tls"] = ListenerConfig(
                 type="tcp", bind=f"0.0.0.0:{tls_port}", max_connections=50,
                 ssl=True, certfile=cert, keyfile=key,
             )
-            log.info("MQTT TLS listener enabled on port %d", tls_port)
-        else:
-            log.warning("TLS requested but no cert available - TLS listener not started")
+            log.info("MQTT TLS listener enabled on port %d (mqtt_tls_api off: an "
+                     "HTTPS API call on this port will fail)", tls_port)
 
     config = BrokerConfig(
         listeners=listeners,
@@ -231,20 +264,8 @@ async def start_broker(
 
     broker = Broker(config)
 
-    # The device's mbedtls offers only RSA key-exchange and PSK suites — no
-    # ECDHE, no DHE. Python 3.12's ssl.create_default_context() excludes plain
-    # RSA (no forward secrecy), so the TLS handshake fails with no shared
-    # cipher. We override _create_ssl_context to accept what the device sends.
-    _orig = Broker._create_ssl_context
-
-    @staticmethod
-    def _device_friendly_ssl_context(listener):
-        ctx = _orig(listener)
-        ctx.set_ciphers("DEFAULT:@SECLEVEL=0")
-        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
-        return ctx
-
-    broker._create_ssl_context = _device_friendly_ssl_context
+    # An instance attribute, so amqtt calls it unbound: `(listener)` only.
+    broker._create_ssl_context = device_ssl_context
 
     await broker.start()
 

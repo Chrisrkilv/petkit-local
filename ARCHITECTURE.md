@@ -29,6 +29,7 @@ petkit_local/
 │   ├── proxy.py       upstream session + forward()
 │   ├── bucket.py      unauthenticated OSS sink, listening on 0.0.0.0
 │   ├── dns.py         resolver for upstream lookups only
+│   ├── tls_split.py   the device TLS port: HTTPS API calls here, MQTT to the broker
 │   └── cloud_fetch.py signs as the device to ask PetKit something directly
 ├── mqtt/          broker.py (amqtt) · auth.py (Aliyun HMAC) · topics.py
 │                  bridge.py (device <-> us) · ble_relay.py (accessories through a parent)

@@ -46,6 +46,7 @@ PetKit device ──HTTP───► petkit-local ──MQTT discovery──► 
 | `mqtt_tls` | `true` | Add a TLS listener to the device-facing broker (self-signed, generated on first start). |
 | `mqtt_tls_port` | `443` | Port for that listener. Change this and the matching port mapping together if your device dials a different one. |
 | `mqtt_strict_auth` | `false` | Enforce the Aliyun HMAC signature. Off by default so a signature nuance cannot lock a device out. |
+| `mqtt_tls_api` | `true` | Also answer HTTPS API calls on the TLS port. A Pura X (T3) makes every API call there and a Pura Max (T4) tries there first, so with this off the T3 cannot register and the T4 waits 10 seconds before falling back to port 80. Devices that only send MQTT there are unaffected either way. |
 
 Payload capture and proxy mode are **not** options here. Both are things you turn on
 while watching a device, so they live in the panel's **Setup → Settings**, take
@@ -56,7 +57,7 @@ effect immediately, and persist to `/data/settings_overrides.json`.
 | Container port | Default host port | Purpose |
 |------|------|---------|
 | `80` | `80` | Device HTTP API. ESP32 models want it here: a T4 provisioned with `:8080` reaches Wi-Fi and then fails to connect to the server, and one redirected by DNS dials 80 with nowhere to tell it otherwise. |
-| `443` | `443` | Device MQTT over TLS. |
+| `443` | `443` | Device MQTT over TLS, and the HTTPS API calls some ESP32 models make there (`mqtt_tls_api`). |
 | `1883` | *(unmapped)* | Plain MQTT listener, internal to this app. Map it only if a device connects in plaintext. |
 | `9000` | `9000` | Media upload bucket the device PUTs photos and videos to. |
 | `8099` | *(unmapped)* | The web panel over plain HTTP, **no authentication**. Ingress proxies this internally. |

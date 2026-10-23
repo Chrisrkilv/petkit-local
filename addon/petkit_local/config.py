@@ -273,6 +273,10 @@ class Config:
     # Enforce Aliyun HMAC sign. Default off = accept-all (like the reference
     # broker), so an algorithm/sign nuance never blocks a real device.
     mqtt_strict_auth: bool = False
+    # Answer HTTPS API calls on the TLS port as well as MQTT (`http/tls_split.py`).
+    # On by default: some ESP32 models make their API calls there, and with the
+    # broker alone on the port every one of them fails.
+    mqtt_tls_api: bool = True
 
     # Seconds without a heartbeat or state report before a device is marked
     # offline (availability -> "offline" in HA).
@@ -525,6 +529,7 @@ class Config:
         c.mqtt_tls = _opt_bool(opts, "mqtt_tls", c.mqtt_tls)
         c.mqtt_tls_port = _opt_int(opts, "mqtt_tls_port", c.mqtt_tls_port)
         c.mqtt_strict_auth = _opt_bool(opts, "mqtt_strict_auth", c.mqtt_strict_auth)
+        c.mqtt_tls_api = _opt_bool(opts, "mqtt_tls_api", c.mqtt_tls_api)
 
         # `capture` and every `proxy_*` key are deliberately NOT read from the
         # options file: they are debugging switches you flip while watching a

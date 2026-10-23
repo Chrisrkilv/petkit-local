@@ -28,7 +28,9 @@ arch:
   - amd64
   - armv7
 # Device-facing ports. The device speaks plain HTTP to the API and MQTT over
-# TLS on 443 (confirmed for both ESP32 and Ingenic from a real capture).
+# TLS on 443 (confirmed for both ESP32 and Ingenic from a real capture). Some
+# ESP32 models also send their API calls to 443 as HTTPS; `mqtt_tls_api` answers
+# those on the same port.
 # The embedded broker's plain listener (1883) is internal-only for the bridge
 # and is intentionally NOT mapped to the host, so it never clashes with the
 # Mosquitto add-on. 443 must be free on the host (HA usually runs on 8123).
@@ -41,7 +43,7 @@ ports:
   9000/tcp: 9000
 ports_description:
   80/tcp: "PetKit device API (plain HTTP). A remap is honoured — the host port is put in the address devices are handed — but prefer host 80 anyway: a device redirected by DNS dials 80 with nowhere to tell it otherwise, and an ESP32 model provisioned with another port reaches Wi-Fi and then fails to reach the server."
-  443/tcp: "PetKit device MQTT over TLS. Port is inferred from localkit; change mqtt_tls_port + this mapping if your device dials a different one (e.g. 1883)."
+  443/tcp: "PetKit device MQTT over TLS, and HTTPS API calls from the ESP32 models that make them here (mqtt_tls_api). Port is inferred from localkit; change mqtt_tls_port + this mapping if your device dials a different one (e.g. 1883)."
   1883/tcp: "Optional: expose the plain MQTT listener (internal by default; map a host port only if a device connects plaintext)."
   8099/tcp: "Optional: expose the web panel directly on the LAN (no HA auth) for debugging/curl. Leave unmapped to use auth-only Ingress."
   8554/tcp: "Camera RTSP, from the bundled go2rtc. Home Assistant reaches this over the internal network without a host port, so leave it unmapped unless you want the stream on your LAN. Mapping it to 8554 would clash with the go2rtc add-on."
@@ -84,6 +86,7 @@ options:
   mqtt_tls: true
   mqtt_tls_port: 443
   mqtt_strict_auth: false
+  mqtt_tls_api: true
   # NOTE: proxy mode and payload capture are deliberately NOT options here.
   # Both are debugging switches you flip while watching a device, so they live
   # in the panel's Setup -> Settings and persist to
@@ -100,5 +103,6 @@ schema:
   mqtt_tls: bool
   mqtt_tls_port: port
   mqtt_strict_auth: bool
+  mqtt_tls_api: bool
 startup: application
 boot: auto
