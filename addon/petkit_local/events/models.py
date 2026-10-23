@@ -94,6 +94,9 @@ class Event(Base):
     #: `ai/pets.py::PetRegistry.resolve_pet_ref` maps this to a real pet.
     pet_ref: Mapped[int | None] = mapped_column(Integer)
     pet_id: Mapped[int | None] = mapped_column(Integer)
+    #: How `pet_id` was decided when the weight did it, or why nothing was:
+    #: `ai/pets.py::match_by_weight`'s reason. NULL when no weight match ran.
+    pet_match: Mapped[str | None] = mapped_column(Text)
     score: Mapped[float | None] = mapped_column(REAL)
     content_json: Mapped[str | None] = mapped_column(Text)
     state_json: Mapped[str | None] = mapped_column(Text)

@@ -100,12 +100,16 @@ def test_from_ha_addon_applies_valid_options():
         "mqtt_tls": True,
         "mqtt_tls_port": 8883,
         "mqtt_tls_api": False,
+        "pet_weight_match": True,
+        "pet_weight_max_diff_g": 600,
         "log_level": "debug",
     })
     assert c.offline_timeout == 300
     assert c.mqtt_tls is True
     assert c.mqtt_tls_port == 8883
     assert c.mqtt_tls_api is False
+    assert c.pet_weight_match is True
+    assert c.pet_weight_max_diff_g == 600
     assert c.log_level == "DEBUG"  # main.py resolves this with getattr(logging, ...)
 
 

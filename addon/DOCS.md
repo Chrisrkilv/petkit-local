@@ -47,6 +47,8 @@ PetKit device ──HTTP───► petkit-local ──MQTT discovery──► 
 | `mqtt_tls_port` | `443` | Port for that listener. Change this and the matching port mapping together if your device dials a different one. |
 | `mqtt_strict_auth` | `false` | Enforce the Aliyun HMAC signature. Off by default so a signature nuance cannot lock a device out. |
 | `mqtt_tls_api` | `true` | Also answer HTTPS API calls on the TLS port. A Pura X (T3) makes every API call there and a Pura Max (T4) tries there first, so with this off the T3 cannot register and the T4 waits 10 seconds before falling back to port 80. Devices that only send MQTT there are unaffected either way. |
+| `pet_weight_match` | `false` | On a litter box with no face recognition (Pura X, Pura Max), give a visit to the pet linked to that box whose weight is nearest. Pets need a weight (grams) and the box ticked. A visit too close to halfway between two pets, or further than `pet_weight_max_diff_g` from any of them, stays unnamed; the event's `pet_match` says which. |
+| `pet_weight_max_diff_g` | `800` | Furthest a visit's weight may be from the nearest pet's and still count as that pet. |
 
 Payload capture and proxy mode are **not** options here. Both are things you turn on
 while watching a device, so they live in the panel's **Setup → Settings**, take

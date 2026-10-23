@@ -51,7 +51,7 @@ _NO_SYNC = {"synchronize_session": False}
 # Columns added after the first release — SQLite has no "ADD COLUMN IF NOT
 # EXISTS", so `_migrate` adds any that a pre-existing database is missing.
 _ADDED_COLUMNS = {
-    "events": {"parent_event": "TEXT", "pet_ref": "INTEGER"},
+    "events": {"parent_event": "TEXT", "pet_ref": "INTEGER", "pet_match": "TEXT"},
     "media": {"stitch_state": "TEXT"},
     "pets": {"device_pet_ids_json": "TEXT"},
 }
