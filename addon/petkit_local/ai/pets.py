@@ -24,14 +24,94 @@ import re
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
+from petkit_local.events import codes
+from petkit_local.events.normalize import _as_dict
 from petkit_local.media.transcode import normalize_face_photo
-from petkit_local.utils.coerce import to_int
+from petkit_local.utils.coerce import to_float, to_int
 from petkit_local.utils.paths import UnsafePathError, safe_join, sanitize_filename
 
 if TYPE_CHECKING:
+    from petkit_local.devices.base import Device
     from petkit_local.events.store import EventStore
 
 log = logging.getLogger(__name__)
+
+#: The smallest gap, in grams, either side of the halfway point between the two
+#: nearest pets inside which a visit is left unattributed (`match_by_weight`).
+#: A cat's weight moves by more than the scale's resolution from one visit to
+#: the next, so two cats a few grams apart can never be told apart by weight.
+WEIGHT_UNSURE_MIN_G = 100
+
+#: The same band as a share of the gap between the two nearest pets, used once
+#: it is wider than `WEIGHT_UNSURE_MIN_G`: the further apart two cats are, the
+#: more their own visit-to-visit drift there is room for.
+WEIGHT_UNSURE_SHARE = 0.25
+
+
+def _grams(weight: object) -> float | None:
+    """A pet's stored weight in grams, or None if it has none.
+
+    The panel stores whatever it is given. Grams is what the scale reports and
+    what this compares against, but a weight typed in kilograms (4.9) would
+    otherwise be a 5 g cat, so anything under 100 is read as kg.
+    """
+    value = to_float(weight, None)
+    if value is None or value <= 0:
+        return None
+    return value * 1000 if value < 100 else value
+
+
+def match_by_weight(weight_g: float, pets: list[dict],
+                    max_diff_g: float) -> tuple[int | None, str]:
+    """Pick the pet a visit of `weight_g` belongs to, by weight alone.
+
+    For a box with no face recognition, weight is the only thing a visit says
+    about who made it. The nearest pet wins, unless:
+
+    * it is more than `max_diff_g` away, which is a visitor, a cat that has
+      changed a lot, or a weight that is not a cat at all; or
+    * the second-nearest is nearly as close. "Nearly" is the difference
+      between the two distances being under twice the unsure band, the band
+      being `WEIGHT_UNSURE_SHARE` of the gap between those two pets but never
+      less than `WEIGHT_UNSURE_MIN_G`. Between two pets that is the band
+      either side of their midpoint; it also covers a visit lighter or heavier
+      than both of two pets that weigh almost the same.
+
+    A wrong name is worse than none: the per-pet entities would show one cat's
+    visit as the other's, with nothing to say it was a guess.
+
+    Args:
+        pets: Rows as `PetRegistry.get` returns them. Those without a weight
+            are skipped.
+
+    Returns:
+        `(pet_id, reason)`; `pet_id` is None when no pet was picked, and
+        `reason` says why either way, in words.
+    """
+    weighed = []
+    for pet in pets:
+        grams = _grams(pet.get("weight"))
+        if grams is None:
+            continue
+        if grams != to_float(pet.get("weight"), None):
+            log.info("Pet %s weight %s read as kg (%.0f g)", pet.get("name"),
+                     pet.get("weight"), grams)
+        weighed.append((abs(weight_g - grams), grams, pet))
+    if not weighed:
+        return None, f"no match: {weight_g:.0f} g, no pet on this device has a weight"
+    weighed.sort(key=lambda w: w[0])
+
+    distance, grams, nearest = weighed[0]
+    if distance > max_diff_g:
+        return None, (f"no match: {weight_g:.0f} g, nearest {nearest['name']} "
+                      f"({grams:.0f} g) is {distance:.0f} g away")
+    if len(weighed) > 1:
+        distance2, grams2, second = weighed[1]
+        band = max(WEIGHT_UNSURE_MIN_G, WEIGHT_UNSURE_SHARE * abs(grams - grams2))
+        if distance2 - distance < 2 * band:
+            return None, (f"unsure: {weight_g:.0f} g is between {nearest['name']} "
+                          f"({grams:.0f} g) and {second['name']} ({grams2:.0f} g)")
+    return nearest["id"], f"weight: {weight_g:.0f} g, nearest {nearest['name']} ({grams:.0f} g)"
 
 # The generated name is substituted into the URL the device is handed
 # (`http://{host}/faces/{name}` in discern_pic_payload), which is built WITHOUT
@@ -369,6 +449,41 @@ class PetRegistry:
             if pet_ref in aliases:
                 return pet["id"]
         return None
+
+    async def attribute(self, row: dict, device: Device, config: dict) -> None:
+        """Set `row["pet_id"]` for an event about to be stored.
+
+        The id the device reported decides, through `resolve_pet_ref`. Only
+        when it reported none, has no face recognition of its own, and the
+        `pet_weight_match` option is on, is a visit summary matched to one of
+        the device's pets by weight (`match_by_weight`). `row["pet_match"]`
+        then records what was decided and why, including when nothing was.
+
+        Args:
+            config: The live config dict (`pet_weight_match`,
+                `pet_weight_max_diff_g`).
+        """
+        row["pet_id"] = await self.resolve_pet_ref(row.get("pet_ref"))
+        if row.get("pet_ref") is not None or not config.get("pet_weight_match"):
+            return
+        if device.supports_ai:
+            return
+        code = codes.lookup(str(row.get("event_type") or ""), device.device_type)
+        if code is None or code.role != codes.ROLE_VISIT_SUMMARY:
+            return
+        content = _as_dict(row.get("content_json"))
+        weight = to_float(content.get("pet_weight", content.get("petWeight")), None)
+        if not weight or weight <= 0:
+            return
+
+        max_diff = to_float(config.get("pet_weight_max_diff_g"), None)
+        if max_diff is None:
+            max_diff = 800
+        pet_id, reason = match_by_weight(weight, await self.for_device(device.petkit_id),
+                                         max_diff)
+        row["pet_id"] = pet_id
+        row["pet_match"] = reason
+        log.info("Visit on %s %d: %s", device.device_type, device.petkit_id, reason)
 
     async def pet_for_related_event(self, related_event: str) -> dict | None:
         """Best-effort pet lookup for a visit session — used by

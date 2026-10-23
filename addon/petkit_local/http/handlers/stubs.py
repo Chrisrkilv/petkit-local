@@ -199,7 +199,7 @@ async def handle_event_report(request: web.Request) -> web.Response:
     # leaving `pet_id` None for an unknown id is what stops a stale cloud
     # identity from fabricating an HA pet device.
     if pet_registry is not None:
-        row["pet_id"] = await pet_registry.resolve_pet_ref(row.get("pet_ref"))
+        await pet_registry.attribute(row, device, config)
 
     await store.upsert_event(row)
 

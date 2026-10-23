@@ -31,6 +31,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mqtt-cert", default=None, help="TLS cert path (self-signed generated if missing)")
     parser.add_argument("--mqtt-key", default=None, help="TLS key path")
     parser.add_argument("--mqtt-strict-auth", action="store_true", help="Enforce Aliyun HMAC sign (default accept-all)")
+    parser.add_argument("--pet-weight-match", action="store_true", help="Attribute visits to pets by weight on boxes with no face recognition")
+    parser.add_argument("--pet-weight-max-diff-g", type=int, default=None, help="Furthest a visit may be from a pet's weight and still be it (default 800)")
     # Every other port has a flag; these two did not, so a standalone run could
     # not move the panel or the media bucket off their defaults without hand-
     # writing a config file. That matters outside the add-on: Home Assistant
@@ -92,6 +94,10 @@ def build_config(args: argparse.Namespace) -> Config:
             config.mqtt_key = args.mqtt_key
         if args.mqtt_strict_auth:
             config.mqtt_strict_auth = True
+        if args.pet_weight_match:
+            config.pet_weight_match = True
+        if args.pet_weight_max_diff_g is not None:
+            config.pet_weight_max_diff_g = args.pet_weight_max_diff_g
         if args.web_port is not None:
             config.web_port = args.web_port
         if args.bucket_port is not None:

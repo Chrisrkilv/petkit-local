@@ -278,6 +278,14 @@ class Config:
     # offline (availability -> "offline" in HA).
     offline_timeout: int = 180
 
+    # Attribute a visit to a pet by its weight on a box with no face
+    # recognition (`ai/pets.py::match_by_weight`). Off by default: a wrong
+    # name is worse than none, and only the owner knows whether their cats'
+    # weights are far enough apart to tell them by.
+    pet_weight_match: bool = False
+    #: Furthest, in grams, a visit may be from the nearest pet and still be it.
+    pet_weight_max_diff_g: int = 800
+
     # When enabled, raw HTTP state reports and MQTT messages are appended to
     # JSONL files under {data_dir}/capture for reverse-engineering / parser tuning.
     # Panel-only (see PANEL_LIVE_KEYS).
@@ -429,6 +437,8 @@ class Config:
             "capture_dir": self.capture_dir,
             "bucket_endpoint": self.bucket_endpoint,
             "data_dir": self.data_dir,
+            "pet_weight_match": self.pet_weight_match,
+            "pet_weight_max_diff_g": self.pet_weight_max_diff_g,
         }
 
     @classmethod
@@ -525,6 +535,9 @@ class Config:
         c.mqtt_tls = _opt_bool(opts, "mqtt_tls", c.mqtt_tls)
         c.mqtt_tls_port = _opt_int(opts, "mqtt_tls_port", c.mqtt_tls_port)
         c.mqtt_strict_auth = _opt_bool(opts, "mqtt_strict_auth", c.mqtt_strict_auth)
+        c.pet_weight_match = _opt_bool(opts, "pet_weight_match", c.pet_weight_match)
+        c.pet_weight_max_diff_g = _opt_int(opts, "pet_weight_max_diff_g",
+                                           c.pet_weight_max_diff_g)
 
         # `capture` and every `proxy_*` key are deliberately NOT read from the
         # options file: they are debugging switches you flip while watching a
