@@ -422,6 +422,38 @@ async def test_heartbeat_still_delivers_commands_while_clearing_the_flag():
         await client.close()
 
 
+async def test_a_heartbeat_that_brings_a_device_back_tells_ha():
+    """`online` is never persisted, so after a restart HA is told `offline`
+    until something reports the device back. For a box that only polls between
+    state reports that something is the heartbeat, and the middleware only tells
+    HA when the request is what flipped the flag."""
+    reg = DeviceRegistry()
+    app = create_app(reg, CONFIG)
+    seen = []
+
+    async def on_device_seen(device):
+        seen.append(device.petkit_id)
+
+    app["on_device_seen"] = on_device_seen
+    client = TestClient(TestServer(app))
+    await client.start_server()
+    try:
+        await client.post("/6/t5/dev_signup", headers=HDR)
+        dev = reg.get(100)
+        dev.online = False
+        seen.clear()
+
+        await client.get("/6/poll/t5/heartbeat", headers=HDR)
+        assert dev.online is True
+        assert seen == [100]
+
+        # Only the transition is news.
+        await client.get("/6/poll/t5/heartbeat", headers=HDR)
+        assert seen == [100]
+    finally:
+        await client.close()
+
+
 async def test_all_iot_device_info_endpoints_return_ali_wrapped():
     """The cloud returns ``{result: {ali: {...}}}`` for every device, including
     those calling ``dev_iot_device_info`` (confirmed on a D4SH capture). The
