@@ -27,7 +27,7 @@ from petkit_local.devices import payloads
 from petkit_local.devices.base import Device
 from petkit_local.events.ingest import (
     apply_derived_state, apply_state_snapshot, entity_for_event, from_event_report,
-    parse_event_report_form,
+    ha_event_type, parse_event_report_form,
 )
 from petkit_local.http.handlers._common import (
     device_id, no_device_response, request_device,
@@ -228,10 +228,12 @@ async def handle_event_report(request: web.Request) -> web.Response:
 
     if ha_publisher is not None:
         # Resolved through the code table, not by name: over HTTP `event_type`
-        # is a numeric code whose meaning depends on the device category.
+        # is a numeric code whose meaning depends on the device category. It
+        # fires under its MQTT twin's name, the one the entity declares.
         entity_suffix = entity_for_event(row["event_type"], device.device_type)
-        if entity_suffix:
-            await ha_publisher.publish_event(device, entity_suffix, row["event_type"], content)
+        fired_type = ha_event_type(row["event_type"], device.device_type)
+        if entity_suffix and fired_type:
+            await ha_publisher.publish_event(device, entity_suffix, fired_type, content)
         await ha_publisher.publish_state(device)
         await ha_publisher.publish_availability(device)
 

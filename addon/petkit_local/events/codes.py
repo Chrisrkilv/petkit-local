@@ -212,6 +212,13 @@ One row per code, carrying everything known about it — which is what
     #: exists for -- the switch-on and the switch-off are byte-identical
     #: payloads and only `state.lightState` tells them apart.
     state_label: tuple[str, str, str] | None = None
+    #: HTTP rows only: the MQTT topic name the same report goes by, where the
+    #: firmware function or a capture ties the two together. HA `event`
+    #: entities declare MQTT names (`ha/entities/events.py`), so this is what
+    #: an HTTP code fires as (`normalize.ha_event_type`). Empty means no twin
+    #: is known, and the code is not fired rather than fired as a number HA
+    #: would drop.
+    twin: str = ""
 
 
 # --- NS1: HTTP dev_event_report numeric codes ------------------------------
@@ -228,21 +235,24 @@ One row per code, carrying everything known about it — which is what
 LITTER_HTTP_CODES: dict[str, EventCode] = {
     "1": EventCode(
         kind=KIND_ERROR, label="Error", anchor=True, role=ROLE_ERROR_START,
-        firmware="err_start_event_report (a0=1)", families=LITTER_NEXT_GEN,
+        firmware="err_start_event_report (a0=1)", twin="error_start",
+        families=LITTER_NEXT_GEN,
         note="Observed 8 times, always paired with a code 2 sharing its "
              "event_id. Content {err, msg, detail}; msg and detail were "
              "empty in every capture, so the cause comes from err alone.",
     ),
     "2": EventCode(
         kind=KIND_ERROR, label="Error cleared", role=ROLE_ERROR_OVER,
-        firmware="err_over_event_report (a0=2)", families=LITTER_NEXT_GEN,
+        firmware="err_over_event_report (a0=2)", twin="error_over",
+        families=LITTER_NEXT_GEN,
         note="Its start_time equals the episode id suffix, i.e. it points "
              "back at when the fault began.",
     ),
     "3": EventCode(
         kind=KIND_CLEANING, label="Mechanism started", detail=True,
         role=ROLE_START, mode_from="action",
-        firmware="pk_event_pack_work_start", families=LITTER_NEXT_GEN,
+        firmware="pk_event_pack_work_start", twin="work_start",
+        families=LITTER_NEXT_GEN,
         note="Opens a work cycle of whatever mode `action` names -- cleaning, "
              "odor removal or maintenance. It is NOT cleaning-specific: a flat "
              "'Cleaning (mechanism)' label misreads every other mode.",
@@ -264,21 +274,22 @@ LITTER_HTTP_CODES: dict[str, EventCode] = {
     "5": EventCode(
         kind=KIND_CLEANING, label="Cleaning done", role=ROLE_DONE,
         done_word="cleaning", firmware="pk_event_pack_clean_over",
-        families=LITTER,
+        twin="clean_over", families=LITTER,
         note="Co-occurs with action=0 in all 22 captures. Carries the waste "
              "report (img, aesKey, clean_weight, litter_percent, box, "
              "ph_reason) that the RE's shorter shape omits.",
     ),
     "6": EventCode(
         kind=KIND_CLEANING, label="Litter emptied", grade=UNVERIFIED,
-        role=ROLE_DONE, done_word="litter empty", families=LITTER,
+        role=ROLE_DONE, done_word="litter empty", twin="dump_over",
+        families=LITTER,
         note="Never seen on our wire. Shape {start_time, over_time, "
              "start_reason, pos, current, result, err, components, "
              "dump_weight} per the reference.",
     ),
     "7": EventCode(
         kind=KIND_CLEANING, label="Reset done", role=ROLE_DONE,
-        done_word="reset", families=LITTER,
+        done_word="reset", twin="reset_over", families=LITTER,
         note="Seen once, terminating the action=9 maintenance session, and "
              "its shape matched the documented one exactly -- which is what "
              "upgraded this row from a low-confidence cross-namespace guess.",
@@ -286,7 +297,8 @@ LITTER_HTTP_CODES: dict[str, EventCode] = {
     "8": EventCode(
         kind=KIND_CLEANING, label="Deodorizing", role=ROLE_DONE,
         done_word="deodorizing",
-        firmware="pk_event_pack_spray_and_liquid_reset_over", families=LITTER,
+        firmware="pk_event_pack_spray_and_liquid_reset_over", twin="spray_over",
+        families=LITTER,
         note="Co-occurs with action=2 (odor removal) in 23 of 23 episodes and "
              "never with any other mode, which rules out the tempting "
              "'Cleaning started' reading. The RE's `key` field is absent from "
@@ -294,13 +306,14 @@ LITTER_HTTP_CODES: dict[str, EventCode] = {
     ),
     "9": EventCode(
         kind=KIND_TOILET, label="Weight check", detail=True, role=ROLE_STEP,
-        firmware="pk_event_pack_pet_in", families=LITTER_NEXT_GEN,
+        firmware="pk_event_pack_pet_in", twin="pet_in",
+        families=LITTER_NEXT_GEN,
         note="Mid-visit sample; shares the visit's event_id with code 10.",
     ),
     "10": EventCode(
         kind=KIND_TOILET, label="Toilet visit", anchor=True,
         role=ROLE_VISIT_SUMMARY, firmware="pk_event_pack_pet_out",
-        families=LITTER,
+        twin="pet_out", families=LITTER,
         note="The authoritative visit record: time_in/time_out, is_shit, "
              "shit_weight, pet_weight, count, area, score_info, img.",
     ),
@@ -308,7 +321,7 @@ LITTER_HTTP_CODES: dict[str, EventCode] = {
         kind=KIND_CLEANING, label="Litter correction done", grade=UNVERIFIED,
         role=ROLE_DONE, done_word="litter correction",
         firmware="correct_over_event_report (a0=0xb)",
-        families=LITTER_NEXT_GEN,
+        twin="correct_over", families=LITTER_NEXT_GEN,
     ),
     "13": EventCode(
         kind=KIND_CLEANING, label="Mechanism step", grade=INFERRED,
@@ -322,26 +335,27 @@ LITTER_HTTP_CODES: dict[str, EventCode] = {
     "14": EventCode(
         kind=KIND_CLEANING, label="Motor stop requested", detail=True,
         role=ROLE_STOP, mode_from="action",
-        firmware="stop_start_event_report (a0=0xe)", families=LITTER_NEXT_GEN,
+        firmware="stop_start_event_report (a0=0xe)", twin="stop_start",
+        families=LITTER_NEXT_GEN,
     ),
     "15": EventCode(
         kind=KIND_CLEANING, label="Motor stop paused", detail=True,
         role=ROLE_STOP, mode_from="action",
         firmware="stop_suspend_event_report (a0=0xf)",
-        families=LITTER_NEXT_GEN,
+        twin="stop_suspend", families=LITTER_NEXT_GEN,
     ),
     "16": EventCode(
         kind=KIND_CLEANING, label="Motor stop resumed", detail=True,
         role=ROLE_STOP, mode_from="action",
         firmware="stop_continue_event_detect (a0=0x10)",
-        families=LITTER_NEXT_GEN,
+        twin="stop_continue", families=LITTER_NEXT_GEN,
     ),
     "17": EventCode(
         kind=KIND_CLEANING, label="Light cycle", detail=True,
         role=ROLE_DONE, done_word="light cycle",
         state_label=("lightState", "light on", "light off"),
         firmware="light_over_event_report (a0=0x11)",
-        families=LITTER_NEXT_GEN,
+        twin="light_over", families=LITTER_NEXT_GEN,
         note="The LED illuminator, literally. `ctrl` drives white and IR LEDs "
              "over PWM (pk_pwm_ctrl_whiteLight_*, pk_pwm_mode_force_irLight_*), "
              "raises this with an open reason (pk_set_event_light_open_reason, "
@@ -384,14 +398,14 @@ LITTER_HTTP_CODES: dict[str, EventCode] = {
         kind=KIND_CLEANING, label="Deodorant reset done", grade=UNVERIFIED,
         role=ROLE_DONE, done_word="deodorant reset",
         firmware="pk_event_pack_liquid_reset_over (v0=0x15)",
-        families=LITTER_N60,
+        twin="liquid_reset_over", families=LITTER_N60,
         note="N60 liquid deodorizer. Not T5-only: see LITTER_N60.",
     ),
     "24": EventCode(
         kind=KIND_PET, label="Detection result", detail=True,
         role=ROLE_DETECTION,
         firmware="package_pet_discern_event_report (v0=0x18)",
-        families=LITTER_NEXT_GEN,
+        twin="pet_discern", families=LITTER_NEXT_GEN,
         note="Closes a code 20 episode, linked by content.related_event. Its "
              "score_info is usually EMPTY -- 31 of 33 captures -- while code 10 "
              "carries an id/score pair in 25 of 27, so the pet identity "
@@ -404,14 +418,14 @@ LITTER_HTTP_CODES: dict[str, EventCode] = {
     ),
     "51": EventCode(
         kind=KIND_SYSTEM, label="BLE relay started", detail=True,
-        families=LITTER_NEXT_GEN,
+        twin="ble_relay_start", families=LITTER_NEXT_GEN,
         note="Confirmed on a T5 (fw 943, HTTP capture). Content "
              "{start_time, start_reason, action, device: {mac, type}}. "
              "The MQTT equivalent is ble_relay_start/post.",
     ),
     "53": EventCode(
         kind=KIND_SYSTEM, label="BLE relay data", detail=True,
-        families=LITTER_NEXT_GEN,
+        twin="ble_response", families=LITTER_NEXT_GEN,
         note="Confirmed on a T5 (fw 943, HTTP capture). Content "
              "{payload: [{cmd, data}], device: {type, mac}}. "
              "The MQTT equivalent is ble_response/post.",
@@ -436,14 +450,14 @@ FEEDER_HTTP_CODES: dict[str, EventCode] = {
     "2": EventCode(
         kind=KIND_FEEDING, label="Feeding done", anchor=True, role=ROLE_DONE,
         done_word="feeding", firmware="pk_event_pack_feed_over_event_msg (a0=2)",
-        families=FEEDER,
+        twin="feed_over", families=FEEDER,
         note="The collision that proves these codes are per-category: 2 is "
              "`feed_over` here and `err_over` on a litter box. Content is "
              "{id, day, manual, time, online_state, eat_video, state}.",
     ),
     "3": EventCode(
         kind=KIND_FEEDING, label="Feeding started", detail=True,
-        role=ROLE_START, families=FEEDER,
+        role=ROLE_START, twin="feed_start", families=FEEDER,
         note="Confirmed on a live D4SH (fw 248, HTTP). Content "
              "{id, day, manual, time, online_state} matches MQTT "
              "feed_start/post from the same model (fw 867). "
@@ -451,7 +465,7 @@ FEEDER_HTTP_CODES: dict[str, EventCode] = {
     ),
     "4": EventCode(
         kind=KIND_FEEDING, label="Feeding done", anchor=True,
-        role=ROLE_DONE, done_word="feeding", families=FEEDER,
+        role=ROLE_DONE, done_word="feeding", twin="feed_over", families=FEEDER,
         note="Confirmed on a live D4SH (fw 248, HTTP). Content "
              "{mark, start_time, id, day, manual, time, real_amount1, "
              "real_amount2, completed_at, result, err_code, media} "
@@ -461,7 +475,8 @@ FEEDER_HTTP_CODES: dict[str, EventCode] = {
     ),
     "5": EventCode(
         kind=KIND_FEEDING, label="Eating started", detail=True,
-        role=ROLE_START, grade=INFERRED, families=FEEDER_CAMERA,
+        role=ROLE_START, grade=INFERRED, twin="eat_start",
+        families=FEEDER_CAMERA,
         note="Snapshot event on a live D4SH (fw 248, HTTP), content "
              "{img, aesKey, mark, start_time} — same shape as codes 7 and 8. "
              "Read as `eat_start` by the device's OWNER from the attached "
@@ -509,13 +524,14 @@ FEEDER_HTTP_CODES: dict[str, EventCode] = {
 FOUNTAIN_HTTP_CODES: dict[str, EventCode] = {
     "5": EventCode(
         kind=KIND_DRINKING, label="Drinking started", detail=True,
-        role=ROLE_START, families=FOUNTAIN_NEXT_GEN,
+        role=ROLE_START, twin="drink_start", families=FOUNTAIN_NEXT_GEN,
         note="Confirmed on a W7H (fw 456, HTTP capture). Content "
              "{event_start} matches MQTT drink_start/post shape.",
     ),
     "6": EventCode(
         kind=KIND_DRINKING, label="Drinking done", anchor=True,
-        role=ROLE_DONE, done_word="drinking", families=FOUNTAIN_NEXT_GEN,
+        role=ROLE_DONE, done_word="drinking", twin="drink_over",
+        families=FOUNTAIN_NEXT_GEN,
         note="Confirmed on a W7H (fw 456, HTTP capture). Content "
              "{img, aesKey, mark, start_time, event_start, event_end, "
              "drink_time, media, upload, drinkDetection, pet_id, "
@@ -530,7 +546,7 @@ FOUNTAIN_HTTP_CODES: dict[str, EventCode] = {
     ),
     "24": EventCode(
         kind=KIND_PET, label="Detection result", detail=True,
-        role=ROLE_DETECTION, families=FOUNTAIN_NEXT_GEN,
+        role=ROLE_DETECTION, twin="pet_discern", families=FOUNTAIN_NEXT_GEN,
         note="Same role as litter code 24. Confirmed on a W7H (fw 456). "
              "Content {related_event, count, area, pet_id, tracker_info, "
              "vomit_info}. Emitted as INVALID JSON (bare related_event "
@@ -803,6 +819,20 @@ MQTT_EVENT_TOPICS: dict[str, EventCode] = {
 MQTT_TRANSPORT_TOPICS = frozenset({"property", "property_post", "data_get",
                                    "ble_response", "ble_relay_start",
                                    "ble_relay_over"})
+
+
+def mqtt_event_names(kind: str, families: frozenset[str]) -> list[str]:
+    """Every MQTT event name of `kind` that a device in `families` emits.
+
+    This is what an HA `event` entity's `event_types` list is derived from
+    (`ha/entities/events.py`): HA silently drops a fired event_type that the
+    discovery config did not declare, so the accepted list has to be THIS
+    table filtered the same way the firing side (`normalize.entity_for_event`)
+    resolves it — a hand-maintained copy is one more parallel collection to
+    drift. Order follows the table, which groups related cycles together.
+    """
+    return [name for name, code in MQTT_EVENT_TOPICS.items()
+            if code.kind == kind and code.families & families]
 
 
 # --- NS4: RecordType media classification ----------------------------------

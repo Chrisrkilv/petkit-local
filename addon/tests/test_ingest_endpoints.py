@@ -147,6 +147,41 @@ async def test_event_report_with_pet_id_publishes_pet_discovery_and_state():
             await client.close()
 
 
+class _RecordingPublisher(_FakePetPublisher):
+    def __init__(self):
+        super().__init__()
+        self.events = []
+
+    async def publish_event(self, device, entity_suffix, event_type, attrs=None):
+        self.events.append((entity_suffix, event_type, attrs))
+
+
+async def test_event_report_fires_the_ha_event_under_its_mqtt_name():
+    """Over HTTP the code is a number the event entity never declares, so HA
+    dropped every visit and cleaning of a box reporting this way."""
+    with tempfile.TemporaryDirectory() as tmp:
+        reg = DeviceRegistry()
+        reg.get_or_create(petkit_id=100, device_type="t3", serial_number="SN100")
+        pub = _RecordingPublisher()
+
+        app = create_app(reg, dict(CONFIG))
+        app["event_store"] = EventStore(Path(tmp) / "petkit.db")
+        app["ha_publisher"] = pub
+
+        client = TestClient(TestServer(app))
+        await client.start_server()
+        try:
+            for code in ("10", "4", "12"):
+                body = (f"eventType={code}&eventId=e{code}&content="
+                        "%7B%22pet_weight%22%3A4200%7D")
+                r = await client.post("/6/t3/dev_event_report", headers=HDR, data=body)
+                assert r.status == 200
+            # 4 has no MQTT twin and 12 is unmapped, so neither is fired.
+            assert pub.events == [("toilet_event", "pet_out", {"pet_weight": 4200})]
+        finally:
+            await client.close()
+
+
 async def test_event_report_without_body_is_safe():
     with tempfile.TemporaryDirectory() as tmp:
         client, reg, store, hub, device, raw_root, media_root = await _client(tmp)

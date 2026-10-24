@@ -123,6 +123,46 @@ def test_an_http_code_fires_the_same_ha_event_entity_as_its_mqtt_twin():
         assert entity_for_event(code, device_type) == entity
 
 
+def test_every_twin_is_an_mqtt_name_of_the_same_kind():
+    """A twin fires on the entity its code's kind picks, so a twin of another
+    kind would land on an entity that never declared it, and a twin that is
+    not an MQTT name is declared nowhere."""
+    for table, key, code in _all_rows():
+        if not code.twin:
+            continue
+        assert table != "mqtt", f"mqtt:{key} is already an MQTT name"
+        twin = codes.MQTT_EVENT_TOPICS.get(code.twin)
+        assert twin is not None, f"{table}:{key} twin {code.twin!r} is not a topic"
+        assert twin.kind == code.kind, f"{table}:{key} and {code.twin} differ in kind"
+
+
+def test_an_http_code_fires_in_ha_under_its_mqtt_name():
+    """The event entities declare MQTT names and HA drops any other type.
+    Firing the bare code lost every visit and cleaning of a box reporting
+    over HTTP."""
+    for code, device_type, name in [
+        ("9", "t3", "pet_in"),
+        ("10", "t3", "pet_out"),
+        ("3", "t3", "work_start"),
+        ("5", "t3", "clean_over"),
+        ("8", "t3", "spray_over"),
+        ("1", "t5", "error_start"),
+        ("4", "d4sh", "feed_over"),
+        ("6", "w7h", "drink_over"),
+    ]:
+        assert ingest.ha_event_type(code, device_type) == name
+    # An MQTT name passes through unchanged.
+    assert ingest.ha_event_type("clean_over", "t5") == "clean_over"
+
+
+def test_a_code_with_no_twin_is_not_fired():
+    """There is no declared name to fire it under, and sending it anyway only
+    earns a rejection in HA's log."""
+    assert ingest.ha_event_type("4", "t5") is None      # shared step, conflicted
+    assert ingest.ha_event_type("12", "t3") is None     # unmapped
+    assert ingest.ha_event_type("", "t3") is None
+
+
 def test_every_declared_ha_event_entity_can_actually_be_fired():
     """An `event` entity nothing maps to is published to HA and stays silent
     forever — indistinguishable from a device that never does the thing."""
