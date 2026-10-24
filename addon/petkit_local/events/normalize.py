@@ -384,6 +384,24 @@ def entity_for_event(event_type: str, device_type: str | None = None) -> str | N
     return KIND_TO_ENTITY.get(code.kind) if code else None
 
 
+def ha_event_type(event_type: str, device_type: str | None = None) -> str | None:
+    """The event_type an HA `event` entity fires as, or None to not fire it.
+
+    The entities declare MQTT names (`ha/entities/events.py`), so an MQTT name
+    passes through and an HTTP code fires as its `twin`. Over HTTP the code is
+    a number, which HA would drop as undeclared -- every visit and cleaning of
+    a box reporting over HTTP was lost that way. A code with no known twin
+    returns None.
+    """
+    code = codes.lookup(event_type, device_type)
+    if code is None:
+        return None
+    if code.twin:
+        return code.twin
+    name = str(event_type).lower()
+    return name if name in codes.MQTT_EVENT_TOPICS else None
+
+
 #: Transport envelope, not telemetry. Every MQTT `params` carries these
 #: alongside the device's actual readings -- confirmed on a live T5, where 186
 #: of 186 `property` posts included `XDevice`.
