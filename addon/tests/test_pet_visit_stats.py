@@ -1,3 +1,10 @@
+import json
+import urllib.parse
+
+import pytest
+
+from petkit_local.devices.base import Device
+from petkit_local.events.normalize import from_event_report, parse_event_report_form
 from petkit_local.utils.timeutil import local_day_bounds
 
 
@@ -84,3 +91,50 @@ async def test_stats_ignore_other_pets_and_non_visit_events(event_store):
     stats = await store.pet_visit_stats(1, now=200.0)
     assert stats["last_visit_ts"] is None
     assert stats["visits_today"] == 0
+
+
+def _http_visit(device_type: str, content: dict) -> list[dict]:
+    """A litter box's HTTP visit as it is really stored: the code 9 weight
+    check and the code 10 summary, sharing one event_id. Shapes from a real
+    T3 on 2.1.0 (ids and weights changed); the T4 is the same family and has
+    no capture of its own."""
+    device = Device(device_type=device_type, petkit_id=500, serial_number="SN500")
+    rows = []
+    for code, body in (("9", {"pet_weight": 4012}), ("10", content)):
+        form = (f"eventType={code}&eventId=500_1790000000&content="
+                + urllib.parse.quote(json.dumps(body)))
+        row = from_event_report(device, parse_event_report_form(form))
+        row.pop("_state", None)
+        row.pop("_content", None)
+        rows.append(row)
+    rows[1]["pet_id"] = 1  # the summary is the row a pet is attributed on
+    return rows
+
+
+@pytest.mark.parametrize("device_type", ["t3", "t4"])
+async def test_an_http_visit_summary_gives_its_own_duration(event_store, device_type):
+    """The ESP32 boxes report over HTTP, so the visit is stored under code "10"
+    and its weight check under "9", never "pet_in": the pairing above finds
+    nothing. The summary carries the device's own span, which is the answer."""
+    for row in _http_visit(device_type, {
+            "time_in": 1790000001, "time_out": 1790000105, "auto_clear": 1,
+            "is_shit": 1, "interval": 30, "pet_weight": 4100, "shit_weight": 0}):
+        await event_store.upsert_event(row)
+    stats = await event_store.pet_visit_stats(1, now=1790000200.0)
+    assert stats["last_visit_weight"] == 4100
+    assert stats["last_visit_duration"] == 104
+    assert isinstance(stats["last_visit_duration"], int)
+
+
+@pytest.mark.parametrize("content", [
+    {"time_out": 1790000105, "pet_weight": 4100},
+    {"time_in": 0, "time_out": 1790000105, "pet_weight": 4100},
+    {"time_in": 1790000105, "time_out": 1790000001, "pet_weight": 4100},
+    {"time_in": "soon", "time_out": 1790000105, "pet_weight": 4100},
+])
+async def test_a_summary_without_a_usable_span_leaves_the_duration_unset(event_store, content):
+    for row in _http_visit("t3", content):
+        await event_store.upsert_event(row)
+    stats = await event_store.pet_visit_stats(1, now=1790000200.0)
+    assert stats["last_visit_weight"] == 4100
+    assert stats["last_visit_duration"] is None

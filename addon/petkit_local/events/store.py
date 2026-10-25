@@ -34,6 +34,7 @@ from sqlalchemy.ext.asyncio import (
 
 from petkit_local.events import codes
 from petkit_local.events.models import Base, BlockedAttempt, Event, Media, Pet, PetFace
+from petkit_local.utils.coerce import to_float
 from petkit_local.utils.timeutil import local_day_start
 
 log = logging.getLogger(__name__)
@@ -898,7 +899,15 @@ class EventStore:
                     weight = round(float(w)) if w is not None else None
                 except (TypeError, ValueError):
                     weight = None
-                if latest.get("related_event"):
+                # The visit summary's own span comes first, as in
+                # `sessions._duration_of`. Over HTTP it is the only source: the
+                # weight check is stored under its code ("9"), never "pet_in",
+                # so the pairing below finds nothing for a T3 or T4.
+                time_in = to_float(content.get("time_in"), None)
+                time_out = to_float(content.get("time_out"), None)
+                if time_in is not None and time_out is not None and time_out >= time_in > 0:
+                    duration = round(time_out - time_in)
+                elif latest.get("related_event"):
                     pet_in_ts = await session.scalar(
                         select(Event.ts)
                         .where(Event.related_event == latest["related_event"],
