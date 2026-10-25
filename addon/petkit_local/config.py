@@ -277,6 +277,10 @@ class Config:
     # On by default: some ESP32 models make their API calls there, and with the
     # broker alone on the port every one of them fails.
     mqtt_tls_api: bool = True
+    # Hand the models in `KEEP_UPSTREAM_PRODUCT_KEY_TYPES` PetKit's real Aliyun
+    # `productKey`, learned in proxy mode, instead of ours. On by default: a T4
+    # given ours never gets past dev_iot_device_info (issue #44).
+    keep_upstream_product_key: bool = True
 
     # Seconds without a heartbeat or state report before a device is marked
     # offline (availability -> "offline" in HA).
@@ -443,6 +447,7 @@ class Config:
             "data_dir": self.data_dir,
             "pet_weight_match": self.pet_weight_match,
             "pet_weight_max_diff_g": self.pet_weight_max_diff_g,
+            "keep_upstream_product_key": self.keep_upstream_product_key,
         }
 
     @classmethod
@@ -543,6 +548,8 @@ class Config:
         c.pet_weight_match = _opt_bool(opts, "pet_weight_match", c.pet_weight_match)
         c.pet_weight_max_diff_g = _opt_int(opts, "pet_weight_max_diff_g",
                                            c.pet_weight_max_diff_g)
+        c.keep_upstream_product_key = _opt_bool(opts, "keep_upstream_product_key",
+                                                c.keep_upstream_product_key)
 
         # `capture` and every `proxy_*` key are deliberately NOT read from the
         # options file: they are debugging switches you flip while watching a

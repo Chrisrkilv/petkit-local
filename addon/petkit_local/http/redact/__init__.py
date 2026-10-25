@@ -124,6 +124,10 @@ class RedactionPolicy:
     #: transport detail. On, a device whose subscription lapsed keeps
     #: recording locally instead of silently stopping.
     local_cvr_window: bool = False
+    #: Pass PetKit's real `productKey` through to a model that needs it
+    #: (`Device.keeps_upstream_product_key`) instead of substituting ours.
+    #: The `keep_upstream_product_key` add-on option, on by default.
+    keep_upstream_product_key: bool = True
 
 
 # Below the models on purpose: both submodules import them back from here, so

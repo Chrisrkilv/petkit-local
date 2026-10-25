@@ -80,6 +80,7 @@ def test_from_ha_addon_survives_every_option_being_garbage():
         "mqtt_tls": "maybe",
         "mqtt_strict_auth": {},
         "mqtt_tls_api": "maybe",
+        "keep_upstream_product_key": "maybe",
         "log_level": "LOUD",
         "ha_mqtt_host": "10.0.0.2",
         "ha_mqtt_port": "not a port",
@@ -88,6 +89,7 @@ def test_from_ha_addon_survives_every_option_being_garbage():
     assert c.mqtt_tls_port == 443
     assert c.mqtt_tls is False
     assert c.mqtt_tls_api is True
+    assert c.keep_upstream_product_key is True
     assert c.capture is False
     assert c.log_level == "INFO"
     assert c.ha_mqtt_host == "10.0.0.2"
@@ -102,6 +104,7 @@ def test_from_ha_addon_applies_valid_options():
         "mqtt_tls_api": False,
         "pet_weight_match": True,
         "pet_weight_max_diff_g": 600,
+        "keep_upstream_product_key": False,
         "log_level": "debug",
     })
     assert c.offline_timeout == 300
@@ -110,6 +113,7 @@ def test_from_ha_addon_applies_valid_options():
     assert c.mqtt_tls_api is False
     assert c.pet_weight_match is True
     assert c.pet_weight_max_diff_g == 600
+    assert c.keep_upstream_product_key is False
     assert c.log_level == "DEBUG"  # main.py resolves this with getattr(logging, ...)
 
 

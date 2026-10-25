@@ -34,6 +34,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-mqtt-tls-api", action="store_true", help="Serve only MQTT on the TLS port, not HTTPS API calls too")
     parser.add_argument("--pet-weight-match", action="store_true", help="Attribute visits to pets by weight on boxes with no face recognition")
     parser.add_argument("--pet-weight-max-diff-g", type=int, default=None, help="Furthest a visit may be from a pet's weight and still be it (default 800)")
+    parser.add_argument("--no-keep-upstream-product-key", action="store_true", help="Hand every model our own MQTT product key, never PetKit's")
     # Every other port has a flag; these two did not, so a standalone run could
     # not move the panel or the media bucket off their defaults without hand-
     # writing a config file. That matters outside the add-on: Home Assistant
@@ -101,6 +102,8 @@ def build_config(args: argparse.Namespace) -> Config:
             config.pet_weight_match = True
         if args.pet_weight_max_diff_g is not None:
             config.pet_weight_max_diff_g = args.pet_weight_max_diff_g
+        if args.no_keep_upstream_product_key:
+            config.keep_upstream_product_key = False
         if args.web_port is not None:
             config.web_port = args.web_port
         if args.bucket_port is not None:

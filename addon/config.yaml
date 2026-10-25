@@ -88,6 +88,7 @@ options:
   mqtt_tls_api: true
   pet_weight_match: false
   pet_weight_max_diff_g: 800
+  keep_upstream_product_key: true
   # NOTE: proxy mode and payload capture are deliberately NOT options here.
   # Both are debugging switches you flip while watching a device, so they live
   # in the panel's Setup -> Settings and persist to
@@ -107,5 +108,6 @@ schema:
   mqtt_tls_api: bool
   pet_weight_match: bool
   pet_weight_max_diff_g: int(100,5000)
+  keep_upstream_product_key: bool
 startup: application
 boot: auto

@@ -111,6 +111,15 @@ DEVICE_TYPES_NEXT_GEN = {"t5", "t6", "t7", "d4h", "d4sh", "w7h"}
 #     away from anyone using one.
 DEVICE_TYPES_AI = {"t5", "t6", "t7", "w7h"}
 
+# Models that must keep PetKit's real Aliyun `productKey` rather than the one we
+# mint (`utils/crypto.py::generate_product_key`). Issue #44: a T4 on firmware
+# 1.652 handed our 10-character key loops through dev_ota_check, dev_signup and
+# dev_iot_device_info every ~80s and never reports state; with the real
+# 11-character key put back it runs at once, deviceName and deviceSecret still
+# ours. Listed by model, not by category: the T3 is the same family and runs
+# fine on ours, and nothing says any other model needs it.
+KEEP_UPSTREAM_PRODUCT_KEY_TYPES = frozenset({"t4"})
+
 # Commercial product names per device codename. Verified against pypetkitapi
 # doc/API.md, except T5/T6 which were corrected against a real device (T5 is a
 # Purobot Max Pro 2). A codename that is not listed here is still supported —

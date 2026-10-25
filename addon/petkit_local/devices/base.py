@@ -22,6 +22,7 @@ from petkit_local.utils.const import (
     DEVICE_TYPES_NEXT_GEN,
     DEVICE_TYPES_PURIFIER,
     DEVICE_TYPES_WATER_FOUNTAIN,
+    KEEP_UPSTREAM_PRODUCT_KEY_TYPES,
 )
 from petkit_local.utils.coerce import to_bool, to_float
 from petkit_local.utils.crypto import generate_device_secret, generate_product_key
@@ -222,6 +223,16 @@ class Device:
     def is_purifier(self) -> bool:
         """Whether this is an air purifier (K2/K3, BLE-only in practice)."""
         return self.device_type in DEVICE_TYPES_PURIFIER
+
+    @property
+    def keeps_upstream_product_key(self) -> bool:
+        """Whether this model must be handed PetKit's real `productKey`.
+
+        Only the model set decides here; the `keep_upstream_product_key` option
+        is read by the callers (`http/redact/rules.py::_match_mqtt` and
+        `http/middleware/proxy.py::_remember_upstream_credentials`).
+        """
+        return self.device_type in KEEP_UPSTREAM_PRODUCT_KEY_TYPES
 
     @property
     def is_ble_only(self) -> bool:
