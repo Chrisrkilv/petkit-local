@@ -134,6 +134,7 @@ def _build_policy(request: web.Request, device):
         block_log_upload=config.get("proxy_block_log_upload", True),
         media_to_real_oss=config.get("proxy_media_real_oss", False),
         local_cvr_window=config.get("proxy_local_cvr_window", False),
+        keep_upstream_product_key=config.get("keep_upstream_product_key", True),
     )
 
 
@@ -411,17 +412,31 @@ def _remember_upstream_credentials(request: web.Request, device, exchange) -> No
       reverts to a secret the cloud rejects.
     * The **Aliyun MQTT credentials** from `dev_iot_device_info`, for
       `mqtt/upstream.py`. Kept in their own file, not on the device.
+
+    The real `productKey` is the one MQTT value that is ALSO adopted onto the
+    device, and only for a model that needs it (`Device.keeps_upstream_product_key`):
+    the proxied reply already handed it over, so our own answers have to say the
+    same or a T4 is back to the key it refuses as soon as one is served locally.
     """
+    registry = request.app.get("registry")
     api_secret = exchange.captured.get("api_secret")
     if api_secret and api_secret != device.api_secret:
         device.api_secret = api_secret
-        registry = request.app.get("registry")
         if registry is not None:
             registry.mark_dirty()
         log.info("Adopted the real PetKit API secret for device %d — its requests "
                  "will now verify upstream", device.petkit_id)
 
     creds = exchange.captured.get("mqtt")
+    product_key = (creds or {}).get("product_key")
+    if (product_key and product_key != device.mqtt_product_key
+            and device.keeps_upstream_product_key
+            and request.app["config"].get("keep_upstream_product_key", True)):
+        device.mqtt_product_key = product_key
+        if registry is not None:
+            registry.mark_dirty()
+        log.info("Adopted the real PetKit product key for device %d", device.petkit_id)
+
     store = request.app.get("proxy_upstream_creds")
     if not creds or store is None:
         return

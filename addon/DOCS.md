@@ -46,6 +46,7 @@ PetKit device ──HTTP───► petkit-local ──MQTT discovery──► 
 | `mqtt_tls` | `true` | Add a TLS listener to the device-facing broker (self-signed, generated on first start). |
 | `mqtt_tls_port` | `443` | Port for that listener. Change this and the matching port mapping together if your device dials a different one. |
 | `mqtt_strict_auth` | `false` | Enforce the Aliyun HMAC signature. Off by default so a signature nuance cannot lock a device out. |
+| `keep_upstream_product_key` | `true` | Give a Pura Max (T4) its real PetKit product key instead of one made up here. It refuses a made-up one and keeps signing up again every 80 seconds. The real key is learned the first time the device is seen in proxy mode; the device name and secret are still ours. |
 
 Payload capture and proxy mode are **not** options here. Both are things you turn on
 while watching a device, so they live in the panel's **Setup → Settings**, take

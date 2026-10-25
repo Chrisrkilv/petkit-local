@@ -273,6 +273,10 @@ class Config:
     # Enforce Aliyun HMAC sign. Default off = accept-all (like the reference
     # broker), so an algorithm/sign nuance never blocks a real device.
     mqtt_strict_auth: bool = False
+    # Hand the models in `KEEP_UPSTREAM_PRODUCT_KEY_TYPES` PetKit's real Aliyun
+    # `productKey`, learned in proxy mode, instead of ours. On by default: a T4
+    # given ours never gets past dev_iot_device_info (issue #44).
+    keep_upstream_product_key: bool = True
 
     # Seconds without a heartbeat or state report before a device is marked
     # offline (availability -> "offline" in HA).
@@ -429,6 +433,7 @@ class Config:
             "capture_dir": self.capture_dir,
             "bucket_endpoint": self.bucket_endpoint,
             "data_dir": self.data_dir,
+            "keep_upstream_product_key": self.keep_upstream_product_key,
         }
 
     @classmethod
@@ -525,6 +530,8 @@ class Config:
         c.mqtt_tls = _opt_bool(opts, "mqtt_tls", c.mqtt_tls)
         c.mqtt_tls_port = _opt_int(opts, "mqtt_tls_port", c.mqtt_tls_port)
         c.mqtt_strict_auth = _opt_bool(opts, "mqtt_strict_auth", c.mqtt_strict_auth)
+        c.keep_upstream_product_key = _opt_bool(opts, "keep_upstream_product_key",
+                                                c.keep_upstream_product_key)
 
         # `capture` and every `proxy_*` key are deliberately NOT read from the
         # options file: they are debugging switches you flip while watching a

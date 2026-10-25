@@ -31,6 +31,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mqtt-cert", default=None, help="TLS cert path (self-signed generated if missing)")
     parser.add_argument("--mqtt-key", default=None, help="TLS key path")
     parser.add_argument("--mqtt-strict-auth", action="store_true", help="Enforce Aliyun HMAC sign (default accept-all)")
+    parser.add_argument("--no-keep-upstream-product-key", action="store_true", help="Hand every model our own MQTT product key, never PetKit's")
     # Every other port has a flag; these two did not, so a standalone run could
     # not move the panel or the media bucket off their defaults without hand-
     # writing a config file. That matters outside the add-on: Home Assistant
@@ -92,6 +93,8 @@ def build_config(args: argparse.Namespace) -> Config:
             config.mqtt_key = args.mqtt_key
         if args.mqtt_strict_auth:
             config.mqtt_strict_auth = True
+        if args.no_keep_upstream_product_key:
+            config.keep_upstream_product_key = False
         if args.web_port is not None:
             config.web_port = args.web_port
         if args.bucket_port is not None:

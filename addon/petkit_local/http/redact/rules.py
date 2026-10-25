@@ -262,12 +262,23 @@ def _match_mqtt(node: dict, path: str, policy: RedactionPolicy,
             if value or key not in captured:
                 captured[key] = value
 
+    # A T4 refuses the key we mint and loops back to dev_signup (issue #44), so
+    # for the models that need it PetKit's own key goes through. The host and
+    # the other two credentials are still ours, which is what keeps the device
+    # on our broker; `_remember_upstream_credentials` then adopts the key so
+    # our local answers hand out the same one.
+    product_key = device.mqtt_product_key
+    upstream_key = node.get("productKey")
+    if (policy.keep_upstream_product_key and device.keeps_upstream_product_key
+            and isinstance(upstream_key, str) and upstream_key):
+        product_key = upstream_key
+
     ours = {
         "mqttHost": device.resolve_mqtt_host(policy.mqtt_host),
-        "productKey": device.mqtt_product_key,
+        "productKey": product_key,
         "deviceName": device.mqtt_device_name,
         "deviceSecret": device.mqtt_device_secret,
-        "iotInstanceId": device.mqtt_product_key,
+        "iotInstanceId": product_key,
     }
     patched = dict(node)
     original = {}
