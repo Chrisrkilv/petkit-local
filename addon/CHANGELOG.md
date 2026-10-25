@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.1.0-house6 — 2026-10-25
+
+A house build of 2.1.0, from the fork's `house` branch.
+
+- **A Pura Max (T4) keeps PetKit's real product key** (issue #44). A proxied
+  `dev_iot_device_info` passes the cloud's `productKey` through to a T4, with
+  `iotInstanceId` set to the same value, and the device adopts it so local answers
+  hand out the same key. Host, device name and secret are still ours. New option
+  `keep_upstream_product_key`, on by default. Other models are unchanged.
+- **Last Visit Duration works for a box reporting over HTTP.** The per-pet sensor
+  now takes `time_out - time_in` from the visit summary (event code 10); it used
+  to stay unknown on a Pura X.
+- Tests that a Pura Max visit fires `pet_out` and is named by weight exactly as a
+  Pura X visit is.
+
 ## 2.1.0 — 2026-08-12
 
 The YumShare Dual-Hopper (D4SH) camera feeder is now confirmed working, and most
